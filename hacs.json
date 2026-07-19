@@ -1,0 +1,6 @@
+{
+  "name": "360° 3D Floorplan Card",
+  "content_type": "plugin",
+  "filename": "three-floorplan-card.js",
+  "render_readme": true
+}

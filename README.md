@@ -22,7 +22,7 @@ Since this card is self-hosted on your GitHub account, add it manually to HACS:
 2. Click the **three dots** in the top right-hand corner and choose **Custom repositories**.
 3. Paste the URL of your GitHub repository:
    ```text
-   https://github.com/YOUR_USERNAME/three-floorplan-card
+   https://github.com/johnny709009/360-floorplan-card
    ```
 4. Set the **Category** dropdown choice to **Lovelace**.
 5. Click **Add**.

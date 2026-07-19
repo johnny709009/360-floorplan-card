@@ -1,8 +1,4 @@
 import { LitElement, html, css } from "https://cdn.jsdelivr.net/gh/lit/dist@2/all/lit-all.element.js";
-import * as THREE from "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.js";
-import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/controls/OrbitControls.js";
-import { OBJLoader } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/OBJLoader.js";
-import { MTLLoader } from "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/jsm/loaders/MTLLoader.js";
 
 class ThreeFloorplanCard extends LitElement {
   static get properties() {
@@ -52,10 +48,42 @@ class ThreeFloorplanCard extends LitElement {
   }
 
   firstUpdated() {
-    this.init3D();
+    this.loadThreeAndModules();
+  }
+
+  // Sequentially loads ThreeJS dependencies into the page window namespace to eliminate relative module import errors completely
+  async loadThreeAndModules() {
+    try {
+      if (!window.THREE) {
+        await this.loadScript("https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js");
+      }
+      if (!window.THREE.OrbitControls) {
+        await this.loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+      }
+      if (!window.THREE.OBJLoader) {
+        await this.loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js");
+      }
+      if (!window.THREE.MTLLoader) {
+        await this.loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/MTLLoader.js");
+      }
+      this.init3D();
+    } catch (err) {
+      console.error("Failed to load 3D dependencies:", err);
+    }
+  }
+
+  loadScript(url) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = url;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
   }
 
   init3D() {
+    const THREE = window.THREE;
     const container = this.shadowRoot.getElementById("container");
     
     this.scene = new THREE.Scene();
@@ -68,7 +96,7 @@ class ThreeFloorplanCard extends LitElement {
     this.renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(this.renderer.domElement);
 
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.05;
     this.controls.maxPolarAngle = Math.PI / 2 - 0.05;
@@ -79,10 +107,10 @@ class ThreeFloorplanCard extends LitElement {
     dirLight.position.set(10, 20, 15);
     this.scene.add(dirLight);
 
-    const mtlLoader = new MTLLoader();
+    const mtlLoader = new THREE.MTLLoader();
     mtlLoader.load(this.config.mtl_path, (materials) => {
       materials.preload();
-      const objLoader = new OBJLoader();
+      const objLoader = new THREE.OBJLoader();
       objLoader.setMaterials(materials);
       objLoader.load(this.config.obj_path, (object) => {
         const box = new THREE.Box3().setFromObject(object);
@@ -104,6 +132,7 @@ class ThreeFloorplanCard extends LitElement {
   }
 
   onWindowResize() {
+    const THREE = window.THREE;
     const container = this.shadowRoot.getElementById("container");
     if (!container) return;
     this.camera.aspect = container.clientWidth / container.clientHeight;
@@ -112,7 +141,8 @@ class ThreeFloorplanCard extends LitElement {
   }
 
   get2DCoords(x, y, z) {
-    if (!this.camera || !this.renderer) return { x: 0, y: 0, visible: false };
+    const THREE = window.THREE;
+    if (!this.camera || !this.renderer || !THREE) return { x: 0, y: 0, visible: false };
     
     const vector = new THREE.Vector3(x, y, z);
     vector.project(this.camera);
@@ -140,12 +170,11 @@ class ThreeFloorplanCard extends LitElement {
 
       if (!coords.visible) return html``;
 
-      // Extract real-time color and brightness states
       let iconStyle = "";
       if (isOn) {
-        const rgb = stateObj.attributes.rgb_color || [253, 216, 53]; // Default bright yellow if no color set
-        const brightness = stateObj.attributes.brightness || 255;    // Scale 0-255
-        const opacity = Math.max(0.4, brightness / 255);             // Don't completely dim out the icon opacity
+        const rgb = stateObj.attributes.rgb_color || [253, 216, 53];
+        const brightness = stateObj.attributes.brightness || 255;
+        const opacity = Math.max(0.4, brightness / 255);
 
         iconStyle = `
           color: rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]});
@@ -172,21 +201,18 @@ class ThreeFloorplanCard extends LitElement {
     });
   }
 
-  // Detects the difference between a click and a long press
   handleTouchStart(e, entityId) {
     this.pressStartTime = Date.now();
     this.pressTimeout = setTimeout(() => {
       this.openMoreInfo(entityId);
       this.pressTimeout = null;
-    }, 500); // 500ms establishes a long-press
+    }, 500);
   }
 
   handleTouchEnd(e, entityId) {
     if (this.pressTimeout) {
       clearTimeout(this.pressTimeout);
       this.pressTimeout = null;
-      
-      // If released before 500ms, execute a standard toggle
       if (Date.now() - this.pressStartTime < 500) {
         this.toggleLight(entityId);
       }
@@ -197,7 +223,6 @@ class ThreeFloorplanCard extends LitElement {
     this.hass.callService("light", "toggle", { entity_id: entityId });
   }
 
-  // Fires Home Assistant's native dialogue window for RGB/Dimmer sliders
   openMoreInfo(entityId) {
     const event = new CustomEvent("hass-more-info", {
       detail: { entityId: entityId },
